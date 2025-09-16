@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  platform  String   // "google" | "meta"
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  datasets Dataset[]
+  
+  @@unique([platform, name], name: "platform_name")
+  @@map("accounts")
+}
+
+model Dataset {
+  id        String   @id @default(cuid())
+  accountId String
+  source    String   // "google_ads" | "meta_ads"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  account        Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  metricRows     MetricRow[]
+  recommendations Recommendation[]
+  @@map("datasets")
+}
+
+model MetricRow {
+  id          String   @id @default(cuid())
+  datasetId   String
+  platform    String   // "google" | "meta"
+  date        DateTime
+  campaign    String
+  adGroup     String?
+  ad          String?
+  audience    String?
+  device      String?
+  placement   String?
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  spend       Float    @default(0)
+  conversions Int      @default(0)
+  convValue   Float    @default(0)
+  cpc         Float?   // Cost per click
+  cpm         Float?   // Cost per mille
+  ctr         Float?   // Click-through rate
+  cvRate      Float?   // Conversion rate
+  roas        Float?   // Return on ad spend
+  costPerConv Float?   // Cost per conversion
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dataset Dataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  @@map("metric_rows")
+}
+
+model Goal {
+  id         String   @id @default(cuid())
+  type       String   // "cpl" | "roas" | "budget"
+  targetCpl  Float?
+  targetRoas Float?
+  budgetCap  Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  recommendations Recommendation[]
+  @@map("goals")
+}
+
+model Recommendation {
+  id                String   @id @default(cuid())
+  datasetId         String
+  goalId            String
+  level             String   // "campaign" | "ad_group" | "ad"
+  entity            String   // Campaign/Ad Group/Ad name
+  currentSpend      Float
+  suggestedSpend    Float
+  expectedConversions Float
+  expectedRoas      Float
+  rationale         String
+  status            String   @default("pending") // "pending" | "accepted" | "rejected"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  dataset   Dataset   @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  goal      Goal      @relation(fields: [goalId], references: [id])
+  actions   Action[]
+  @@map("recommendations")
+}
+
+model Action {
+  id             String   @id @default(cuid())
+  recommendationId String
+  platform       String   // "google" | "meta"
+  entityType     String   // "campaign" | "ad_group" | "ad"
+  entityId       String   // External platform ID
+  actionType     String   // "increase_budget" | "decrease_budget" | "pause" | "resume"
+  params         String   // JSON string with action parameters
+  dryRun         Boolean  @default(true)
+  expectedImpact String   // JSON string with expected impact
+  applied        Boolean  @default(false)
+  appliedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  auditLogs      AuditLog[]
+  @@map("actions")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actionId  String
+  payload   String   // JSON string with request payload
+  result    String   // JSON string with response
+  timestamp DateTime @default(now())
+
+  action Action @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  @@map("audit_logs")
+}
